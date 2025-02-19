@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Flying Bird</title>
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden;
+        font-family: Arial, sans-serif;
+      }
+
+      canvas {
+        display: block;
+        background: url("https://i.postimg.cc/2yZWb1pP/Nightback.png") no-repeat
+          center center/cover;
+      }
+
+      .game-over,
+      .start-screen,
+      .leaderboard {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: rgba(0, 0, 0, 0.8);
+        color: white;
+        padding: 20px;
+        border-radius: 15px;
+        text-align: center;
+        box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.2);
+      }
+
+      .start-screen {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+
+      .game-over {
+        display: none;
+      }
+
+      .leaderboard {
+        display: none;
+        width: 300px;
+        max-height: 400px;
+        overflow-y: auto;
+        text-align: left;
+      }
+
+      button {
+        padding: 10px 20px;
+        background-color: #f57c00;
+        border: none;
+        border-radius: 8px;
+        color: white;
+        font-size: 16px;
+        cursor: pointer;
+        transition: background-color 0.3s;
+      }
+
+      button:hover {
+        background-color: #ff9800;
+      }
+
+      #scoreList {
+        list-style: none;
+        padding: 0;
+      }
+
+      #scoreList li {
+        background: rgba(255, 255, 255, 0.1);
+        margin: 5px 0;
+        padding: 10px;
+        border-radius: 5px;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- <audio id="flapSound" src="flap.mp3"></audio>
+    <audio id="pointSound" src="point.mp3"></audio>
+    <audio id="gameOverSound" src="gameover.mp3"></audio>
+    <audio id="bgMusic" src="background.mp3" loop></audio> -->
+
+    <!-- Start Screen -->
+    <div class="start-screen" id="startScreen">
+      <h1 style="font-size: 3rem; margin: 0">Flying Bird</h1>
+      <p style="font-size: 1.2rem; margin: 10px 0">
+        Guide the bird through the pipes!
+      </p>
+      <p style="font-size: 1rem">Press <strong>Space</strong> to fly</p>
+      <input
+        type="text"
+        id="playerName"
+        placeholder="Enter your name"
+        style="margin: 10px 0; padding: 10px"
+      />
+      <button onclick="startGame()">Start Game</button>
+      <button onclick="viewLeaderboard()">View Leaderboard</button>
+    </div>
+
+    <!-- Game Over Screen -->
+    <div class="game-over" id="gameOver">
+      <h1>Game Over</h1>
+      <p id="scoreDisplay">Score: 0</p>
+      <p id="highScoreDisplay">High Score: 0</p>
+      <button onclick="restartGame()">Restart</button>
+      <button onclick="startNewPlayerGame()">Start New Game</button>
+      <button onclick="viewLeaderboard()">View Leaderboard</button>
+    </div>
+
+    <!-- Leaderboard -->
+    <div class="leaderboard" id="leaderboard">
+      <h1>Leaderboard</h1>
+      <ul id="scoreList"></ul>
+      <button onclick="closeLeaderboard()">Close</button>
+    </div>
+
+    <audio id="flapSound" src="./flappingsound.mp3"></audio>
+    <audio id="scoreSound" src="./Scoresound.mp3"></audio>
+    <audio id="gameOverSound" src="./Gameover.mp3"></audio>
+
+    <script>
+      const canvas = document.getElementById("gameCanvas");
+      const ctx = canvas.getContext("2d");
+
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+
+      const birdImg = new Image();
+      birdImg.src = "https://i.postimg.cc/4xh0f5F5/Bird-png.png";
+
+      const pipeImgTop = new Image();
+      pipeImgTop.src =
+        "https://i.postimg.cc/nz57hvW4/Pipes-removebg-preview.png";
+
+      const pipeImgBottom = new Image();
+      pipeImgBottom.src =
+        "https://i.postimg.cc/nz57hvW4/Pipes-removebg-preview.png";
+
+      const bird = {
+        x: 50,
+        y: canvas.height / 2,
+        width: 50,
+        height: 50,
+        gravity: 0.6,
+        lift: -12,
+        velocity: 0,
+      };
+
+      let pipes = [];
+      let frame = 0;
+      let score = 0;
+      let gameRunning = false;
+      let startScreen = true;
+      let playerName = "";
+      let leaderboard = [];
+
+      const flapSound = document.getElementById("flapSound");
+      const scoreSound = document.getElementById("scoreSound");
+      const gameOverSound = document.getElementById("gameOverSound");
+
+      // Draw Bird
+      function drawBird() {
+        ctx.drawImage(birdImg, bird.x, bird.y, bird.width, bird.height);
+      }
+
+      // Draw Pipes
+      function drawPipes() {
+        pipes.forEach((pipe) => {
+          ctx.drawImage(pipeImgTop, pipe.x, 0, pipe.width, pipe.top);
+          ctx.drawImage(
+            pipeImgBottom,
+            pipe.x,
+            canvas.height - pipe.bottom,
+            pipe.width,
+            pipe.bottom
+          );
+        });
+      }
+
+      // Update Pipes
+      function updatePipes() {
+        if (frame % 150 === 0) {
+          const gap = 200;
+          const top = Math.random() * (canvas.height / 2);
+          const bottom = canvas.height - top - gap;
+          pipes.push({
+            x: canvas.width,
+            width: 80,
+            top,
+            bottom,
+            passed: false,
+          });
+        }
+
+        pipes.forEach((pipe) => {
+          pipe.x -= 5;
+        });
+
+        pipes = pipes.filter((pipe) => pipe.x + pipe.width > 0);
+      }
+
+      // Detect Collision
+      function detectCollision() {
+        for (const pipe of pipes) {
+          if (
+            bird.x < pipe.x + pipe.width &&
+            bird.x + bird.width > pipe.x &&
+            (bird.y < pipe.top ||
+              bird.y + bird.height > canvas.height - pipe.bottom)
+          ) {
+            gameOverSound.play();
+            return true;
+          }
+
+          if (!pipe.passed && pipe.x + pipe.width < bird.x) {
+            pipe.passed = true;
+            scoreSound.play();
+            score++;
+          }
+        }
+        return bird.y + bird.height > canvas.height || bird.y < 0;
+      }
+
+      // Update Game
+      function updateGame() {
+        if (!gameRunning) return;
+        flapSound.play();
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        bird.velocity += bird.gravity;
+        bird.y += bird.velocity;
+
+        drawBird();
+        updatePipes();
+        drawPipes();
+
+        if (detectCollision()) {
+          endGame();
+        }
+
+        ctx.fillStyle = "black";
+        ctx.font = "24px Arial";
+        ctx.fillText(`Score: ${score}`, 10, 30);
+
+        frame++;
+        requestAnimationFrame(updateGame);
+      }
+
+      // End Game
+      function endGame() {
+        gameRunning = false;
+        saveScore();
+        document.getElementById("gameOver").style.display = "block";
+        document.getElementById("scoreDisplay").textContent = `Score: ${score}`;
+      }
+
+      // Save Player's Score to Leaderboard
+      function saveScore() {
+        if (score > 0 && playerName) {
+          // Update player score in leaderboard
+          const existingPlayer = leaderboard.find(
+            (entry) => entry.name === playerName
+          );
+          if (existingPlayer) {
+            // Update existing player's score if it's higher
+            if (score > existingPlayer.score) {
+              existingPlayer.score = score;
+            }
+          } else {
+            // Add new player to leaderboard
+            leaderboard.push({ name: playerName, score });
+          }
+
+          // Sort leaderboard and keep top 10
+          leaderboard.sort((a, b) => b.score - a.score);
+          leaderboard = leaderboard.slice(0, 10);
+
+          // Save updated leaderboard
+          localStorage.setItem("leaderboard", JSON.stringify(leaderboard));
+        }
+      }
+
+      // Restart Game
+      function restartGame() {
+        bird.y = canvas.height / 2;
+        bird.velocity = 0;
+        pipes = [];
+        frame = 0;
+        score = 0;
+        gameRunning = true;
+        document.getElementById("gameOver").style.display = "none";
+        updateGame();
+      }
+
+      // Start a New Game for a New Player
+      function startNewPlayerGame() {
+        document.getElementById("gameOver").style.display = "none";
+        document.getElementById("startScreen").style.display = "block";
+        playerName = ""; // Reset player name
+        document.getElementById("playerName").value = ""; // Clear input field
+        gameRunning = false; // Ensure the game is stopped
+      }
+
+      // Start Game
+      function startGame() {
+        playerName = document.getElementById("playerName").value.trim();
+        if (!playerName) {
+          alert("Please enter your name!");
+          return;
+        }
+        startScreen = false;
+        document.getElementById("startScreen").style.display = "none";
+        gameRunning = true;
+
+        document.getElementById("startScreen").style.display = "none";
+        document.getElementById("gameOver").style.display = "none";
+
+        bird.y = canvas.height / 2;
+        bird.velocity = 0;
+        pipes = [];
+        frame = 0;
+        score = 0;
+        gameRunning = true;
+        updateGame();
+      }
+
+      // View Leaderboard
+      function viewLeaderboard() {
+        leaderboard = JSON.parse(localStorage.getItem("leaderboard")) || [];
+        document.getElementById("leaderboard").style.display = "block";
+        const scoreList = document.getElementById("scoreList");
+        scoreList.innerHTML = leaderboard
+          .map((entry) => `<li>${entry.name}: ${entry.score}</li>`)
+          .join("");
+      }
+
+      // Close Leaderboard
+      function closeLeaderboard() {
+        document.getElementById("leaderboard").style.display = "none";
+      }
+
+      // Keyboard Events
+      window.addEventListener("keydown", (event) => {
+        if (event.code === "Space") {
+          if (startScreen) {
+            startGame();
+          } else if (gameRunning) {
+            bird.velocity = bird.lift;
+          }
+        }
+      });
+
+      // Resize Events
+      window.addEventListener("resize", () => {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        if (!gameRunning) {
+          bird.y = canvas.height / 2;
+        }
+      });
+    </script>
+  </body>
+</html>
